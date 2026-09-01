@@ -52,7 +52,7 @@ export default {
         // Appel du modèle de frontière FLUX.1-Schnell
         const response = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
           prompt: prompt.trim(),
-          num_steps: steps
+          steps: steps
         });
         
         // Conversion sécurisée du flux binaire en Base64 Data URI en mémoire
