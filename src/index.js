@@ -52,33 +52,39 @@ export default {
         
         let response = null;
         
-        // A. Formatage spécifique Multipart pour FLUX.2 [dev]
-        if (selectedKey === "flux2" || targetModel.includes("flux-2-dev")) {
-          const form = new FormData();
-          form.append("prompt", prompt.trim());
-          form.append("width", "1024");
-          form.append("height", "1024");
-          if (body.steps) form.append("steps", String(body.steps));
-          
-          const formResponse = new Response(form);
-          const formStream = formResponse.body;
-          const formContentType = formResponse.headers.get("content-type") || "multipart/form-data";
-          
-          response = await env.AI.run(targetModel, {
-            multipart: {
-              body: formStream,
-              contentType: formContentType
-            }
-          });
-        }
-        // B. Formatage Standard pour FLUX.1 et Phoenix
-        else {
-          let aiPayload = { prompt: prompt.trim() };
-          if (body.steps && selectedKey === "flux1") {
-            aiPayload.steps = parseInt(body.steps, 10);
-          }
-          response = await env.AI.run(targetModel, aiPayload);
-        }
+      // A. FLUX.2 [dev] (Nécessite FormData / Multipart)
+if (selectedKey === "flux2" || targetModel.includes("flux-2-dev")) {
+  const form = new FormData();
+  form.append("prompt", prompt.trim());
+  form.append("width", "1024");
+  form.append("height", "1024");
+  
+  const formResponse = new Response(form);
+  const formStream = formResponse.body;
+  const formContentType = formResponse.headers.get("content-type") || "multipart/form-data";
+  
+  response = await env.AI.run(targetModel, {
+    multipart: {
+      body: formStream,
+      contentType: formContentType
+    }
+  });
+}
+// B. Phoenix 1.0 de Leonardo.Ai (Spécialiste Typographie & Affiches)
+else if (selectedKey === "phoenix" || targetModel.includes("phoenix")) {
+  response = await env.AI.run(targetModel, {
+    prompt: prompt.trim(),
+    num_steps: 25,
+    guidance: 3
+  });
+}
+// C. FLUX.1-Schnell (Ultra Rapide)
+else {
+  response = await env.AI.run(targetModel, {
+    prompt: prompt.trim(),
+    steps: parseInt(body.steps, 10) || 4
+  });
+}
         
         // Conversion du flux binaire en Base64 Data URI
         let base64Image = "";
