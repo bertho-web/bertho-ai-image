@@ -1,6 +1,6 @@
 /**
  * bertho-ai-image/src/index.js
- * Microservice Studio Graphique Multi-Modèles (FLUX.2-Dev Multipart, Phoenix, FLUX.1 - 0 Émoji).
+ * Microservice Studio Graphique Multi-Modèles de Frontière (0 Émoji).
  */
 
 const corsHeaders = {
@@ -17,7 +17,9 @@ function json(data, status = 200) {
 }
 
 const IMAGE_MODELS = {
-  "flux2": "@cf/black-forest-labs/flux-2-dev",
+  "flux2_pro": "black-forest-labs/flux-2-pro-preview",
+  "flux2_dev": "@cf/black-forest-labs/flux-2-dev",
+  "pruna": "p-image",
   "phoenix": "@cf/leonardo/phoenix-1.0",
   "flux1": "@cf/black-forest-labs/flux-1-schnell"
 };
@@ -47,46 +49,58 @@ export default {
           return json({ success: false, error: "prompt_required" }, 400);
         }
         
-        const selectedKey = (body.model || "flux2").toLowerCase();
-        const targetModel = IMAGE_MODELS[selectedKey] || IMAGE_MODELS.flux2;
+        const selectedKey = (body.model || "flux2_dev").toLowerCase();
+        const targetModel = IMAGE_MODELS[selectedKey] || IMAGE_MODELS.flux2_dev;
         
         let response = null;
         
-      // A. FLUX.2 [dev] (Nécessite FormData / Multipart)
-if (selectedKey === "flux2" || targetModel.includes("flux-2-dev")) {
-  const form = new FormData();
-  form.append("prompt", prompt.trim());
-  form.append("width", "1024");
-  form.append("height", "1024");
-  
-  const formResponse = new Response(form);
-  const formStream = formResponse.body;
-  const formContentType = formResponse.headers.get("content-type") || "multipart/form-data";
-  
-  response = await env.AI.run(targetModel, {
-    multipart: {
-      body: formStream,
-      contentType: formContentType
-    }
-  });
-}
-// B. Phoenix 1.0 de Leonardo.Ai (Spécialiste Typographie & Affiches)
-else if (selectedKey === "phoenix" || targetModel.includes("phoenix")) {
-  response = await env.AI.run(targetModel, {
-    prompt: prompt.trim(),
-    num_steps: 25,
-    guidance: 3
-  });
-}
-// C. FLUX.1-Schnell (Ultra Rapide)
-else {
-  response = await env.AI.run(targetModel, {
-    prompt: prompt.trim(),
-    steps: parseInt(body.steps, 10) || 4
-  });
-}
+        // 1. FLUX.2 [dev] (Format Multipart / FormData obligatoire)
+        if (selectedKey === "flux2_dev" || targetModel.includes("flux-2-dev")) {
+          const form = new FormData();
+          form.append("prompt", prompt.trim());
+          form.append("width", "1024");
+          form.append("height", "1024");
+          
+          const formResponse = new Response(form);
+          const formStream = formResponse.body;
+          const formContentType = formResponse.headers.get("content-type") || "multipart/form-data";
+          
+          response = await env.AI.run(targetModel, {
+            multipart: {
+              body: formStream,
+              contentType: formContentType
+            }
+          });
+        }
+        // 2. FLUX.2 [pro] (Format Direct BFL Pro)
+        else if (selectedKey === "flux2_pro" || targetModel.includes("flux-2-pro")) {
+          response = await env.AI.run(targetModel, {
+            prompt: prompt.trim()
+          });
+        }
+        // 3. Pruna AI (P-Image - Raffinement ultra-rapide)
+        else if (selectedKey === "pruna" || targetModel.includes("p-image")) {
+          response = await env.AI.run(targetModel, {
+            prompt: prompt.trim()
+          });
+        }
+        // 4. Leonardo Phoenix 1.0 (Affiches & Typographie)
+        else if (selectedKey === "phoenix" || targetModel.includes("phoenix")) {
+          response = await env.AI.run(targetModel, {
+            prompt: prompt.trim(),
+            num_steps: 25,
+            guidance: 3
+          });
+        }
+        // 5. FLUX.1-Schnell (Standard)
+        else {
+          response = await env.AI.run(targetModel, {
+            prompt: prompt.trim(),
+            steps: parseInt(body.steps, 10) || 4
+          });
+        }
         
-        // Conversion du flux binaire en Base64 Data URI
+        // Conversion du flux binaire en Base64 Data URI en mémoire
         let base64Image = "";
         
         if (response && typeof response.image === "string") {
