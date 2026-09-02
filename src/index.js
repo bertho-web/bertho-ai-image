@@ -17,10 +17,10 @@ function json(data, status = 200) {
 }
 
 const IMAGE_MODELS = {
-  "flux2_pro": "black-forest-labs/flux-2-pro-preview",
   "flux2_dev": "@cf/black-forest-labs/flux-2-dev",
-  "pruna": "p-image",
+  "flux2_pro": "black-forest-labs/flux-2-pro-preview",
   "phoenix": "@cf/leonardo/phoenix-1.0",
+  "pruna": "pruna/p-image",
   "flux1": "@cf/black-forest-labs/flux-1-schnell"
 };
 
@@ -72,16 +72,17 @@ export default {
             }
           });
         }
-        // 2. FLUX.2 [pro] (Format Direct BFL Pro)
+        // 2. FLUX.2 [pro] (Format Direct BFL)
         else if (selectedKey === "flux2_pro" || targetModel.includes("flux-2-pro")) {
           response = await env.AI.run(targetModel, {
             prompt: prompt.trim()
           });
         }
-        // 3. Pruna AI (P-Image - Raffinement ultra-rapide)
+        // 3. Pruna AI (P-Image - Format Direct)
         else if (selectedKey === "pruna" || targetModel.includes("p-image")) {
           response = await env.AI.run(targetModel, {
-            prompt: prompt.trim()
+            prompt: prompt.trim(),
+            aspect_ratio: "1:1"
           });
         }
         // 4. Leonardo Phoenix 1.0 (Affiches & Typographie)
@@ -92,7 +93,7 @@ export default {
             guidance: 3
           });
         }
-        // 5. FLUX.1-Schnell (Standard)
+        // 5. FLUX.1-Schnell (Standard Rapide)
         else {
           response = await env.AI.run(targetModel, {
             prompt: prompt.trim(),
@@ -100,14 +101,19 @@ export default {
           });
         }
         
-        // Conversion du flux binaire en Base64 Data URI en mémoire
+        // Conversion sécurisée en Base64 Data URI en mémoire vive
         let base64Image = "";
         
         if (response && typeof response.image === "string") {
           base64Image = response.image.startsWith("data:") ?
             response.image :
             `data:image/png;base64,${response.image}`;
+        } else if (response && response.result && typeof response.result.image === "string") {
+          base64Image = response.result.image.startsWith("data:") ?
+            response.result.image :
+            `data:image/jpeg;base64,${response.result.image}`;
         } else {
+          // Gestion des flux binaires (ReadableStream / ArrayBuffer)
           const buffer = response instanceof ArrayBuffer ?
             response :
             (response instanceof Uint8Array ? response.buffer : await new Response(response).arrayBuffer());
