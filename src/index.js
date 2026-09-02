@@ -1,6 +1,6 @@
 /**
  * bertho-ai-image/src/index.js
- * Microservice Studio Graphique Multi-Modèles (FLUX.2-Dev, Phoenix 1.0, FLUX.1 - 0 Émoji).
+ * Microservice Studio Graphique Multi-Modèles (FLUX.2-Dev Multipart, Phoenix, FLUX.1 - 0 Émoji).
  */
 
 const corsHeaders = {
@@ -26,15 +26,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     
-    // 1. CORS PREFLIGHT
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders
-      });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
     
-    // 2. HEALTH CHECK
     if (request.method === "GET" && url.pathname === "/health") {
       return json({
         service: "bertho-ai-image",
@@ -43,7 +38,6 @@ export default {
       });
     }
     
-    // 3. GÉNÉRATION GRAPHIQUE HAUT DE GAMME
     if (request.method === "POST") {
       try {
         const body = await request.json();
@@ -53,19 +47,40 @@ export default {
           return json({ success: false, error: "prompt_required" }, 400);
         }
         
-        // Sélection dynamique du modèle (FLUX.2 Dev par défaut, Phoenix ou FLUX.1)
-        const selectedModelKey = body.model || "flux2";
-        const targetModel = IMAGE_MODELS[selectedModelKey] || IMAGE_MODELS.flux2;
+        const selectedKey = (body.model || "flux2").toLowerCase();
+        const targetModel = IMAGE_MODELS[selectedKey] || IMAGE_MODELS.flux2;
         
-        let aiPayload = { prompt: prompt.trim() };
-        if (body.steps && selectedModelKey === "flux1") {
-          aiPayload.steps = parseInt(body.steps, 10);
+        let response = null;
+        
+        // A. Formatage spécifique Multipart pour FLUX.2 [dev]
+        if (selectedKey === "flux2" || targetModel.includes("flux-2-dev")) {
+          const form = new FormData();
+          form.append("prompt", prompt.trim());
+          form.append("width", "1024");
+          form.append("height", "1024");
+          if (body.steps) form.append("steps", String(body.steps));
+          
+          const formResponse = new Response(form);
+          const formStream = formResponse.body;
+          const formContentType = formResponse.headers.get("content-type") || "multipart/form-data";
+          
+          response = await env.AI.run(targetModel, {
+            multipart: {
+              body: formStream,
+              contentType: formContentType
+            }
+          });
+        }
+        // B. Formatage Standard pour FLUX.1 et Phoenix
+        else {
+          let aiPayload = { prompt: prompt.trim() };
+          if (body.steps && selectedKey === "flux1") {
+            aiPayload.steps = parseInt(body.steps, 10);
+          }
+          response = await env.AI.run(targetModel, aiPayload);
         }
         
-        // Inférence sur Cloudflare Workers AI
-        const response = await env.AI.run(targetModel, aiPayload);
-        
-        // Conversion du flux binaire en Base64 Data URI en mémoire
+        // Conversion du flux binaire en Base64 Data URI
         let base64Image = "";
         
         if (response && typeof response.image === "string") {
